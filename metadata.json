@@ -1,0 +1,6 @@
+{
+  "name": "تحويلاتي",
+  "description": "تطبيق إنشاء رسائل التحويلات المالية وحفظ سجل العمليات",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
