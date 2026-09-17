@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f766e"><title>إنشاء رسالة تحويل</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f6f7;color:#172024;font-family:system-ui,-apple-system,"Noto Sans Arabic",Arial,sans-serif}.app{max-width:620px;margin:auto;padding:18px 14px 32px}.head{background:#0f766e;color:#fff;border-radius:20px;padding:20px;margin-bottom:14px;box-shadow:0 8px 24px #0001}.head h1{font-size:22px;margin:0 0 5px}.head p{margin:0;opacity:.88;font-size:13px}.card{background:#fff;border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 4px 18px #0000000c}.grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}.field label{display:block;font-size:13px;font-weight:700;margin:0 0 6px}.field input{width:100%;border:1px solid #d8e0e2;border-radius:12px;padding:12px;font-size:16px;outline:0;background:#fbfcfc}.field input:focus{border-color:#0f766e;box-shadow:0 0 0 3px #0f766e18}.full{grid-column:1/-1}.preview{white-space:pre-wrap;direction:rtl;text-align:right;background:#f7faf9;border:1px dashed #b9cfca;border-radius:14px;padding:16px;line-height:1.9;font-size:17px;min-height:145px}.actions{display:flex;gap:9px;margin-top:12px}.btn{border:0;border-radius:12px;padding:12px 15px;font-size:15px;font-weight:800;cursor:pointer;flex:1}.copy{background:#0f766e;color:white}.save{background:#e7f3f1;color:#0f766e}.clear{background:#eef1f2;color:#333}.section-title{font-weight:900;font-size:17px;margin-bottom:12px}.history-item{border:1px solid #e1e7e8;border-radius:13px;padding:12px;margin-top:9px;cursor:pointer}.history-top{display:flex;justify-content:space-between;gap:8px;font-weight:800}.history-time{font-size:11px;color:#667477;margin-top:4px}.history-preview{font-size:13px;color:#455255;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.empty{text-align:center;color:#788486;padding:18px}.danger{color:#b42318;background:#fff0ef}.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:#172024;color:#fff;padding:11px 17px;border-radius:12px;opacity:0;transition:.25s;pointer-events:none;font-size:14px}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}@media(max-width:480px){.grid{grid-template-columns:1fr}.full{grid-column:auto}.actions{flex-wrap:wrap}.btn{min-width:30%}}
+</style></head>
+<body><main class="app">
+<header class="head"><h1>إنشاء رسالة تحويل</h1><p>اكتب البيانات، وستتولد الرسالة تلقائيًا ويمكن نسخها بضغطة واحدة.</p></header>
+<section class="card"><div class="grid">
+<div class="field"><label>المبلغ الصافي</label><input id="amount" inputmode="decimal" placeholder="47,400"></div>
+<div class="field"><label>اسم المستلم</label><input id="recipient" placeholder="محمد احمد محمد الضبياني"></div>
+<div class="field"><label>رقم المستلم</label><input id="recipientPhone" inputmode="tel" placeholder="770386186"></div>
+<div class="field"><label>اسم المرسل</label><input id="sender" placeholder="بكيل علي قاسم الضبياني"></div>
+<div class="field"><label>رقم المرسل</label><input id="senderPhone" inputmode="tel" placeholder="780451254"></div>
+</div></section>
+<section class="card"><div class="section-title">معاينة الرسالة</div><div id="preview" class="preview">أدخل البيانات لعرض الرسالة هنا.</div><div class="actions"><button class="btn copy" id="copy">نسخ الرسالة</button><button class="btn save" id="save">حفظ العملية</button><button class="btn clear" id="clear">مسح</button></div></section>
+<section class="card"><div class="section-title">سجل العمليات</div><div id="history"></div></section>
+</main><div id="toast" class="toast"></div>
+<script>
+const ids=['amount','recipient','recipientPhone','sender','senderPhone'];const $=id=>document.getElementById(id);
+function cleanAmount(v){return v.replace(/[^0-9٠-٩.,]/g,'')}
+function message(){let a=$('amount').value.trim(),r=$('recipient').value.trim(),rp=$('recipientPhone').value.trim(),s=$('sender').value.trim(),sp=$('senderPhone').value.trim();if(!a&&!r&&!rp&&!s&&!sp)return 'أدخل البيانات لعرض الرسالة هنا.';return `${a||''} صافي\n\nالمستلم: ${r||''}\n${rp||''}\n\nالمرسل: ${s||''}\n${sp||''}`}
+function update(){ $('amount').value=cleanAmount($('amount').value);$('preview').textContent=message() }
+ids.forEach(id=>$(id).addEventListener('input',update));
+function toast(t){$('toast').textContent=t;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),1800)}
+$('copy').onclick=async()=>{let m=message();if(m==='أدخل البيانات لعرض الرسالة هنا.')return toast('أدخل البيانات أولًا');try{await navigator.clipboard.writeText(m);toast('تم نسخ الرسالة')}catch(e){let ta=document.createElement('textarea');ta.value=m;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('تم نسخ الرسالة')}};
+function records(){try{return JSON.parse(localStorage.getItem('transferHistory')||'[]')}catch(e){return[]}}
+function render(){let h=records(),box=$('history');if(!h.length){box.innerHTML='<div class="empty">لا توجد عمليات محفوظة بعد.</div>';return}box.innerHTML=h.map((x,i)=>`<div class="history-item" data-i="${i}"><div class="history-top"><span>${x.amount||'بدون مبلغ'} صافي</span><span>عملية ${h.length-i}</span></div><div>${x.recipient||'بدون اسم مستلم'}</div><div class="history-time">${x.date}</div><div class="history-preview">${x.text.replace(/\n/g,' · ')}</div></div>`).join('');box.querySelectorAll('.history-item').forEach(el=>el.onclick=()=>{let x=h[+el.dataset.i];ids.forEach(id=>$(id).value=x[id]||'');update();window.scrollTo({top:0,behavior:'smooth'});toast('تم فتح العملية للمراجعة')})}
+$('save').onclick=()=>{let m=message();if(m==='أدخل البيانات لعرض الرسالة هنا.')return toast('أدخل البيانات أولًا');let h=records();h.unshift({amount:$('amount').value,recipient:$('recipient').value,recipientPhone:$('recipientPhone').value,sender:$('sender').value,senderPhone:$('senderPhone').value,text:m,date:new Date().toLocaleString('ar-YE',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'})});localStorage.setItem('transferHistory',JSON.stringify(h));render();toast('تم حفظ العملية مع التاريخ والوقت')};
+$('clear').onclick=()=>{ids.forEach(id=>$(id).value='');update();toast('تم مسح الحقول')};render();
+</script></body></html>
