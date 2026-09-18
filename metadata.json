@@ -1,6 +1,6 @@
 {
-  "name": "تحويلاتي",
-  "description": "تطبيق إنشاء رسائل التحويلات المالية وحفظ سجل العمليات",
+  "name": "منسّق الحوالات السريع",
+  "description": "منسّق الحوالات السريع - إنشاء رسائل التحويلات وتنسيقها وسجل الحوالات المحفوظة",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
