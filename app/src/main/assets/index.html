@@ -278,23 +278,33 @@
                 phone = phone.substring(5);
             }
 
+            let updatedSomething = false;
             if (targetField === 'recipient') {
-                if (name && !recipientNameInput.value.trim()) {
+                if (name) {
                     recipientNameInput.value = name;
+                    updatedSomething = true;
                 }
                 if (phone) {
                     recipientPhoneInput.value = phone;
+                    updatedSomething = true;
                 }
             } else if (targetField === 'sender') {
-                if (name && !senderNameInput.value.trim()) {
+                if (name) {
                     senderNameInput.value = name;
+                    updatedSomething = true;
                 }
                 if (phone) {
                     senderPhoneInput.value = phone;
+                    updatedSomething = true;
                 }
             }
-            updateOutput();
-            showToast('تم استيراد جهة الاتصال بنجاح 📇');
+
+            if (updatedSomething) {
+                updateOutput();
+                showToast('تم استيراد جهة الاتصال بنجاح 📇');
+            } else {
+                showToast('لم يتم العثور على رقم هاتف في جهة الاتصال');
+            }
         };
 
         // Parse pasted raw text and auto-fill corresponding inputs

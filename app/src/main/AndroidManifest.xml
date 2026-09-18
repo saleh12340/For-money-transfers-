@@ -16,6 +16,7 @@
         android:theme="@style/AppTheme"
         android:label="@string/app_name"
         android:icon="@drawable/ic_transfer"
+        android:hardwareAccelerated="true"
         android:supportsRtl="true">
         <activity
             android:name=".MainActivity"
