@@ -5,9 +5,11 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.ContactsContract;
 import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
@@ -18,6 +20,8 @@ import android.widget.Toast;
 
 public class MainActivity extends Activity {
     private WebView webView;
+    private static final int REQUEST_PICK_RECIPIENT_CONTACT = 101;
+    private static final int REQUEST_PICK_SENDER_CONTACT = 102;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,11 +87,67 @@ public class MainActivity extends Activity {
         }
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+            Uri contactUri = data.getData();
+            String name = "";
+            String phone = "";
+
+            Cursor cursor = null;
+            try {
+                cursor = getContentResolver().query(contactUri, null, null, null, null);
+                if (cursor != null && cursor.moveToFirst()) {
+                    int phoneIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER);
+                    int nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME);
+                    if (phoneIndex != -1) {
+                        phone = cursor.getString(phoneIndex);
+                    }
+                    if (nameIndex != -1) {
+                        name = cursor.getString(nameIndex);
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                if (cursor != null) cursor.close();
+            }
+
+            final String targetField = (requestCode == REQUEST_PICK_RECIPIENT_CONTACT) ? "recipient" : "sender";
+            final String safeName = (name != null) ? name.replace("'", "\\'").replace("\"", "\\\"").trim() : "";
+            final String safePhone = (phone != null) ? phone.replace("'", "\\'").replace("\"", "\\\"").trim() : "";
+
+            webView.post(new Runnable() {
+                @Override
+                public void run() {
+                    webView.evaluateJavascript("if(window.onContactSelected){ window.onContactSelected('" + targetField + "', '" + safeName + "', '" + safePhone + "'); }", null);
+                }
+            });
+        }
+    }
+
     public class WebAppInterface {
         Context context;
 
         WebAppInterface(Context c) {
             context = c;
+        }
+
+        @JavascriptInterface
+        public void pickContact(final String targetField) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Intent pickIntent = new Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI);
+                        int requestCode = "recipient".equals(targetField) ? REQUEST_PICK_RECIPIENT_CONTACT : REQUEST_PICK_SENDER_CONTACT;
+                        startActivityForResult(pickIntent, requestCode);
+                    } catch (Exception e) {
+                        Toast.makeText(MainActivity.this, "تعذر فتح جهات الاتصال", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            });
         }
 
         @JavascriptInterface

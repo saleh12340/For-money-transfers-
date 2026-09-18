@@ -93,11 +93,18 @@
                         class="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded-md focus:ring-1 focus:ring-emerald-500 focus:bg-white outline-none text-xs transition">
                 </div>
 
-                <!-- Recipient Phone -->
+                <!-- Recipient Phone with Contact Picker -->
                 <div>
                     <label class="block font-bold text-slate-700 text-[11px] mb-0.5">رقم المستلم</label>
-                    <input type="tel" id="recipientPhone" placeholder="أدخل رقم المستلم" dir="ltr" autocomplete="off"
-                        class="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded-md focus:ring-1 focus:ring-emerald-500 focus:bg-white outline-none text-right text-xs font-mono transition">
+                    <div class="relative flex items-center">
+                        <input type="tel" id="recipientPhone" placeholder="أدخل رقم المستلم" dir="ltr" autocomplete="off"
+                            class="w-full pr-2 pl-8 py-1 bg-slate-50 border border-slate-300 rounded-md focus:ring-1 focus:ring-emerald-500 focus:bg-white outline-none text-right text-xs font-mono transition">
+                        <button type="button" id="pickRecipientContactBtn" onclick="pickContact('recipient')"
+                            title="اختيار من جهات الاتصال"
+                            class="absolute left-1 p-1 text-slate-500 hover:text-indigo-600 active:scale-95 transition rounded hover:bg-slate-200">
+                            <i class="fa-solid fa-address-book text-xs"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Sender Name -->
@@ -107,11 +114,18 @@
                         class="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded-md focus:ring-1 focus:ring-emerald-500 focus:bg-white outline-none text-xs transition">
                 </div>
 
-                <!-- Sender Phone (9 Digits Auto-Save Trigger) -->
+                <!-- Sender Phone with Contact Picker -->
                 <div>
-                    <label class="block font-bold text-slate-700 text-[11px] mb-0.5">رقم المرسل (9 أرقام)</label>
-                    <input type="tel" id="senderPhone" placeholder="أدخل رقم المرسل" dir="ltr" maxlength="11" autocomplete="off"
-                        class="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded-md focus:ring-1 focus:ring-emerald-500 focus:bg-white outline-none text-right text-xs font-mono transition">
+                    <label class="block font-bold text-slate-700 text-[11px] mb-0.5">رقم المرسل</label>
+                    <div class="relative flex items-center">
+                        <input type="tel" id="senderPhone" placeholder="أدخل رقم المرسل" dir="ltr" maxlength="14" autocomplete="off"
+                            class="w-full pr-2 pl-8 py-1 bg-slate-50 border border-slate-300 rounded-md focus:ring-1 focus:ring-emerald-500 focus:bg-white outline-none text-right text-xs font-mono transition">
+                        <button type="button" id="pickSenderContactBtn" onclick="pickContact('sender')"
+                            title="اختيار من جهات الاتصال"
+                            class="absolute left-1 p-1 text-slate-500 hover:text-indigo-600 active:scale-95 transition rounded hover:bg-slate-200">
+                            <i class="fa-solid fa-address-book text-xs"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Hidden Target WhatsApp Phone Input (Hidden from UI as requested) -->
@@ -173,7 +187,7 @@
             <!-- List of Saved Transfers -->
             <div id="historyList" class="space-y-1.5 max-h-52 overflow-y-auto pr-0.5 text-xs">
                 <div class="text-center py-3 text-slate-400 text-[11px] bg-slate-50 rounded-lg border border-dashed border-slate-300">
-                    لا توجد حوالات في السجل بعد. يتم الحفظ تلقائياً فور كتابة 9 أرقام في رقم المرسل.
+                    لا توجد حوالات في السجل بعد. يتم الحفظ تلقائياً فور اكتمال جميع الحقول الأساسية.
                 </div>
             </div>
         </div>
@@ -223,6 +237,66 @@
             return str.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
         }
 
+        // Contacts Picker Integration (AndroidBridge + Web Contacts API fallback)
+        window.pickContact = async function(targetField) {
+            if (window.AndroidBridge && window.AndroidBridge.pickContact) {
+                window.AndroidBridge.pickContact(targetField);
+                return;
+            }
+
+            if ('contacts' in navigator && 'ContactsManager' in window) {
+                try {
+                    const props = ['name', 'tel'];
+                    const opts = { multiple: false };
+                    const contacts = await navigator.contacts.select(props, opts);
+                    if (contacts && contacts.length > 0) {
+                        const contact = contacts[0];
+                        const name = (contact.name && contact.name[0]) ? contact.name[0] : '';
+                        let tel = (contact.tel && contact.tel[0]) ? contact.tel[0] : '';
+                        tel = tel.replace(/[^0-9]/g, '');
+                        if (tel.startsWith('967') && tel.length > 9) {
+                            tel = tel.substring(3);
+                        }
+                        window.onContactSelected(targetField, name, tel);
+                        return;
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+
+            showToast('اختر جهة الاتصال من الجهاز (متاح في تطبيق الأندرويد)');
+        };
+
+        // Callback invoked when contact is chosen
+        window.onContactSelected = function(targetField, name, rawPhone) {
+            let phone = normalizeDigits(rawPhone || '').replace(/[^0-9]/g, '');
+            if (phone.startsWith('967') && phone.length > 9) {
+                phone = phone.substring(3);
+            }
+            if (phone.startsWith('00967') && phone.length > 11) {
+                phone = phone.substring(5);
+            }
+
+            if (targetField === 'recipient') {
+                if (name && !recipientNameInput.value.trim()) {
+                    recipientNameInput.value = name;
+                }
+                if (phone) {
+                    recipientPhoneInput.value = phone;
+                }
+            } else if (targetField === 'sender') {
+                if (name && !senderNameInput.value.trim()) {
+                    senderNameInput.value = name;
+                }
+                if (phone) {
+                    senderPhoneInput.value = phone;
+                }
+            }
+            updateOutput();
+            showToast('تم استيراد جهة الاتصال بنجاح 📇');
+        };
+
         // Parse pasted raw text and auto-fill corresponding inputs
         function parseAndFillText(pastedText) {
             if (!pastedText || typeof pastedText !== 'string') return false;
@@ -254,7 +328,7 @@
                     }
                 } else {
                     const phoneNum = line.replace(/[^\d]/g, '');
-                    if (phoneNum.length >= 7 && phoneNum.length <= 12) {
+                    if (phoneNum.length >= 7 && phoneNum.length <= 14) {
                         if (!extractedRecipientPhone) {
                             extractedRecipientPhone = phoneNum;
                             foundAny = true;
@@ -274,7 +348,7 @@
                 if (extractedSenderPhone) senderPhoneInput.value = extractedSenderPhone;
 
                 updateOutput();
-                showToast('تم استخراج وتعبئة الحقول بنجاح! ✨');
+                showToast('تم استخراج وتعبئة الحقول وحفظها بنجاح! ✨');
                 return true;
             }
             return false;
@@ -354,15 +428,24 @@
             checkAndAutoSave();
         }
 
-        // Auto Save to Log when Sender Phone reaches 9 digits
+        // Auto Save to Log when ALL core fields are complete
         function checkAndAutoSave() {
-            const rawSenderPhone = normalizeDigits(senderPhoneInput.value.trim()).replace(/[^0-9]/g, '');
             const amountVal = amountInput.value.trim();
             const recipientName = recipientNameInput.value.trim();
+            const rawRecipientPhone = normalizeDigits(recipientPhoneInput.value.trim()).replace(/[^0-9]/g, '');
+            const senderName = senderNameInput.value.trim();
+            const rawSenderPhone = normalizeDigits(senderPhoneInput.value.trim()).replace(/[^0-9]/g, '');
 
-            if (rawSenderPhone.length === 9 && amountVal && recipientName) {
+            // شرط الحفظ التلقائي: اكتمال جميع الحقول الأساسية
+            const isAmountValid = amountVal.length > 0;
+            const isRecipientNameValid = recipientName.length >= 2;
+            const isRecipientPhoneValid = rawRecipientPhone.length >= 7;
+            const isSenderNameValid = senderName.length >= 2;
+            const isSenderPhoneValid = rawSenderPhone.length >= 7;
+
+            if (isAmountValid && isRecipientNameValid && isRecipientPhoneValid && isSenderNameValid && isSenderPhoneValid) {
                 const fullContent = generateFormattedText();
-                const signature = `${amountVal}|${recipientName}|${rawSenderPhone}`;
+                const signature = `${amountVal}|${recipientName}|${rawRecipientPhone}|${senderName}|${rawSenderPhone}`;
 
                 if (signature !== lastSavedSignature) {
                     lastSavedSignature = signature;
@@ -377,8 +460,8 @@
                         timeStr: timeStr,
                         amount: amountVal,
                         recipientName: recipientName,
-                        recipientPhone: normalizeDigits(recipientPhoneInput.value.trim()),
-                        senderName: senderNameInput.value.trim(),
+                        recipientPhone: rawRecipientPhone,
+                        senderName: senderName,
                         senderPhone: rawSenderPhone,
                         fullText: fullContent,
                         isPrepared: false
@@ -417,7 +500,7 @@
             if (savedHistory.length === 0) {
                 historyList.innerHTML = `
                     <div class="text-center py-3 text-slate-400 text-[11px] bg-slate-50 rounded-lg border border-dashed border-slate-300">
-                        لا توجد حوالات في السجل بعد. يتم الحفظ تلقائياً فور كتابة 9 أرقام في رقم المرسل.
+                        لا توجد حوالات في السجل بعد. يتم الحفظ تلقائياً فور اكتمال جميع الحقول الأساسية.
                     </div>
                 `;
                 return;
@@ -426,48 +509,54 @@
             historyList.innerHTML = savedHistory.map(item => {
                 const isPrepared = !!item.isPrepared;
                 if (!isPrepared) {
-                    // الحالة غير المجهزة: خلفية حمراء مع إطار أحمر، وخطوط ونصوص بالأخضر والأزرق البارز
+                    // الحوالات غير المجهزة (غير المكتملة):
+                    // - تظهر بخلفية حمراء بارزة (bg-red-100)
+                    // - لون الخط والنصوص باللون الأزرق والأخضر الغامق
+                    // - زر تفاعلي باللون الأحمر: غير مجهزة (انقر للتجهيز)
                     return `
-                        <div class="bg-red-600 border-2 border-red-700 rounded-lg p-2.5 text-white shadow-sm relative transition-all">
-                            <div class="flex items-center justify-between border-b border-red-500/70 pb-1.5 mb-1.5 gap-1">
-                                <span class="text-[10px] font-bold text-sky-200 bg-red-800/80 px-1.5 py-0.5 rounded border border-sky-300/40 flex items-center gap-1">
-                                    <i class="fa-regular fa-calendar-check text-sky-300"></i> ${item.dateStr} - ${item.timeStr}
+                        <div class="bg-red-100 border-2 border-red-300 rounded-lg p-2.5 shadow-sm relative transition-all">
+                            <div class="flex items-center justify-between border-b border-red-200 pb-1.5 mb-1.5 gap-1">
+                                <span class="text-[10px] font-bold text-blue-900 bg-red-200/80 px-1.5 py-0.5 rounded border border-red-300 flex items-center gap-1">
+                                    <i class="fa-regular fa-calendar-check text-blue-800"></i> ${item.dateStr} - ${item.timeStr}
                                 </span>
                                 
                                 <div class="flex items-center gap-1.5">
-                                    <span class="text-[11px] font-black text-emerald-300 bg-red-800/90 px-2 py-0.5 rounded border border-emerald-400/50 tracking-wide">
+                                    <span class="text-[11px] font-black text-emerald-950 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300 tracking-wide">
                                         ${item.amount} صافي
                                     </span>
                                     <button onclick="toggleTransferStatus(${item.id})" type="button"
-                                        class="bg-red-800 hover:bg-red-900 text-amber-300 border border-amber-400/60 hover:border-amber-300 px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 active:scale-95 transition shadow">
-                                        <i class="fa-solid fa-hourglass-half text-amber-400"></i>
-                                        <span>غير مجهزة - انقر للتجهيز</span>
+                                        class="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 active:scale-95 transition shadow">
+                                        <i class="fa-solid fa-hourglass-half text-white"></i>
+                                        <span>غير مجهزة (انقر للتجهيز)</span>
                                     </button>
                                 </div>
                             </div>
 
                             <div class="grid grid-cols-2 gap-1.5 text-[11px] leading-tight">
                                 <div>
-                                    <strong class="text-sky-200 font-bold">المستلم:</strong>
-                                    <span class="text-emerald-200 font-extrabold">${item.recipientName || '-'}</span>
+                                    <strong class="text-blue-950 font-bold">المستلم:</strong>
+                                    <span class="text-emerald-900 font-extrabold">${item.recipientName || '-'}</span>
                                 </div>
                                 <div dir="ltr" class="text-right font-mono">
-                                    <strong class="text-sky-200 font-sans font-bold">رقم المستلم:</strong>
-                                    <span class="text-emerald-300 font-bold">${item.recipientPhone || '-'}</span>
+                                    <strong class="text-blue-950 font-sans font-bold">رقم المستلم:</strong>
+                                    <span class="text-emerald-900 font-bold">${item.recipientPhone || '-'}</span>
                                 </div>
                                 <div>
-                                    <strong class="text-sky-200 font-bold">المرسل:</strong>
-                                    <span class="text-emerald-200 font-extrabold">${item.senderName || '-'}</span>
+                                    <strong class="text-blue-950 font-bold">المرسل:</strong>
+                                    <span class="text-emerald-900 font-extrabold">${item.senderName || '-'}</span>
                                 </div>
                                 <div dir="ltr" class="text-right font-mono">
-                                    <strong class="text-sky-200 font-sans font-bold">رقم المرسل:</strong>
-                                    <span class="text-emerald-300 font-bold">${item.senderPhone || '-'}</span>
+                                    <strong class="text-blue-950 font-sans font-bold">رقم المرسل:</strong>
+                                    <span class="text-emerald-900 font-bold">${item.senderPhone || '-'}</span>
                                 </div>
                             </div>
                         </div>
                     `;
                 } else {
-                    // الحالة المجهزة: خلفية بيضاء نقية مع إطار رمادي، وجميع النصوص والبيانات باللون الأسود الداكن والواضح
+                    // الحوالات المجهزة (تم تجهيزها):
+                    // - خلفية بيضاء مع حدود رمادية
+                    // - لون الكتابة والخط باللون الأسود البارز والواضح
+                    // - زر رمادي مغلق: مجهزة (جاهزة)
                     return `
                         <div class="bg-white border-2 border-slate-300 rounded-lg p-2.5 text-black shadow-sm relative transition-all">
                             <div class="flex items-center justify-between border-b border-slate-200 pb-1.5 mb-1.5 gap-1">
@@ -480,11 +569,11 @@
                                         ${item.amount} صافي
                                     </span>
                                     <button type="button" disabled
-                                        class="bg-emerald-100 text-emerald-900 border border-emerald-400 px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1 cursor-default opacity-95 shadow-sm select-none"
+                                        class="bg-slate-200 text-slate-700 border border-slate-400 px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 cursor-default opacity-90 shadow-none select-none"
                                         title="تم التجهيز وتثبيت الحالة نهائياً">
-                                        <i class="fa-solid fa-circle-check text-emerald-700"></i>
-                                        <span>مجهزة - جاهزة</span>
-                                        <i class="fa-solid fa-lock text-[9px] text-emerald-700 mr-0.5"></i>
+                                        <i class="fa-solid fa-circle-check text-slate-600"></i>
+                                        <span>مجهزة (جاهزة)</span>
+                                        <i class="fa-solid fa-lock text-[9px] text-slate-500 mr-0.5"></i>
                                     </button>
                                 </div>
                             </div>
