@@ -246,18 +246,17 @@
 
             if ('contacts' in navigator && 'ContactsManager' in window) {
                 try {
-                    const props = ['name', 'tel'];
+                    const props = ['tel'];
                     const opts = { multiple: false };
                     const contacts = await navigator.contacts.select(props, opts);
                     if (contacts && contacts.length > 0) {
                         const contact = contacts[0];
-                        const name = (contact.name && contact.name[0]) ? contact.name[0] : '';
                         let tel = (contact.tel && contact.tel[0]) ? contact.tel[0] : '';
                         tel = tel.replace(/[^0-9]/g, '');
                         if (tel.startsWith('967') && tel.length > 9) {
                             tel = tel.substring(3);
                         }
-                        window.onContactSelected(targetField, name, tel);
+                        window.onContactSelected(targetField, '', tel);
                         return;
                     }
                 } catch (e) {
@@ -268,7 +267,7 @@
             showToast('اختر جهة الاتصال من الجهاز (متاح في تطبيق الأندرويد)');
         };
 
-        // Callback invoked when contact is chosen
+        // Callback invoked when contact is chosen (imports phone ONLY)
         window.onContactSelected = function(targetField, name, rawPhone) {
             let phone = normalizeDigits(rawPhone || '').replace(/[^0-9]/g, '');
             if (phone.startsWith('967') && phone.length > 9) {
@@ -278,33 +277,19 @@
                 phone = phone.substring(5);
             }
 
-            let updatedSomething = false;
-            if (targetField === 'recipient') {
-                if (name) {
-                    recipientNameInput.value = name;
-                    updatedSomething = true;
-                }
-                if (phone) {
-                    recipientPhoneInput.value = phone;
-                    updatedSomething = true;
-                }
-            } else if (targetField === 'sender') {
-                if (name) {
-                    senderNameInput.value = name;
-                    updatedSomething = true;
-                }
-                if (phone) {
-                    senderPhoneInput.value = phone;
-                    updatedSomething = true;
-                }
+            if (!phone) {
+                showToast('لم يتم العثور على رقم هاتف في جهة الاتصال');
+                return;
             }
 
-            if (updatedSomething) {
-                updateOutput();
-                showToast('تم استيراد جهة الاتصال بنجاح 📇');
-            } else {
-                showToast('لم يتم العثور على رقم هاتف في جهة الاتصال');
+            if (targetField === 'recipient') {
+                recipientPhoneInput.value = phone;
+            } else if (targetField === 'sender') {
+                senderPhoneInput.value = phone;
             }
+
+            updateOutput();
+            showToast('تم استيراد رقم الهاتف بنجاح 📱');
         };
 
         // Parse pasted raw text and auto-fill corresponding inputs

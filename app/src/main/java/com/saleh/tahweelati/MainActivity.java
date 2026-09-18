@@ -154,21 +154,17 @@ public class MainActivity extends Activity {
             String name = "";
             String phone = "";
 
+            // Projection for Phone data
             Cursor cursor = null;
             try {
                 String[] projection = new String[]{
-                    ContactsContract.CommonDataKinds.Phone.NUMBER,
-                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME
+                    ContactsContract.CommonDataKinds.Phone.NUMBER
                 };
                 cursor = getContentResolver().query(contactUri, projection, null, null, null);
                 if (cursor != null && cursor.moveToFirst()) {
                     int phoneIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER);
-                    int nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME);
                     if (phoneIndex != -1) {
                         phone = cursor.getString(phoneIndex);
-                    }
-                    if (nameIndex != -1) {
-                        name = cursor.getString(nameIndex);
                     }
                 }
             } catch (Exception e) {
@@ -192,12 +188,6 @@ public class MainActivity extends Activity {
                                 }
                             }
                         }
-                        if (name == null || name.trim().isEmpty()) {
-                            int nameIdx = cursor.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME);
-                            if (nameIdx != -1) {
-                                name = cursor.getString(nameIdx);
-                            }
-                        }
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "Fallback reading failed", e);
@@ -207,7 +197,6 @@ public class MainActivity extends Activity {
             }
 
             final String targetField = (requestCode == REQUEST_PICK_RECIPIENT_CONTACT) ? "recipient" : "sender";
-            final String safeName = (name != null) ? name.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"").trim() : "";
             final String safePhone = (phone != null) ? phone.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"").trim() : "";
 
             if (safePhone.isEmpty()) {
@@ -217,7 +206,7 @@ public class MainActivity extends Activity {
             webView.post(new Runnable() {
                 @Override
                 public void run() {
-                    webView.evaluateJavascript("if(window.onContactSelected){ window.onContactSelected('" + targetField + "', '" + safeName + "', '" + safePhone + "'); }", null);
+                    webView.evaluateJavascript("if(window.onContactSelected){ window.onContactSelected('" + targetField + "', '', '" + safePhone + "'); }", null);
                 }
             });
         }
