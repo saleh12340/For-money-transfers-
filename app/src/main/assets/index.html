@@ -37,6 +37,11 @@
         .app-hint { background:#f8fafc; border:1px solid #e2e8f0; color:#475569; border-radius:.55rem; padding:.4rem .55rem; margin-bottom:.45rem; font-size:.72rem; line-height:1.65; }
         .field-hint { display:block; color:#94a3b8; font-size:.62rem; margin-top:.18rem; line-height:1.45; }
         .input-help { border-color:#10b981 !important; box-shadow:0 0 0 2px rgba(16,185,129,.08); }
+        .suggestions-box { position:absolute; z-index:40; top:calc(100% + 3px); right:0; left:0; background:#fff; border:1px solid #cbd5e1; border-radius:.5rem; box-shadow:0 8px 20px rgba(15,23,42,.12); overflow:hidden; max-height:180px; overflow-y:auto; }
+        .suggestion-item { width:100%; display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:.45rem .6rem; text-align:right; font-size:.72rem; color:#334155; background:#fff; border-bottom:1px solid #f1f5f9; }
+        .suggestion-item:last-child { border-bottom:0; }
+        .suggestion-item:hover, .suggestion-item.active { background:#eef2ff; color:#3730a3; }
+        .suggestion-mark { font-size:.6rem; color:#94a3b8; }
         @media (min-width:640px) { .app-shell{max-width:45.5rem;} .app-hint{font-size:.76rem;padding:.45rem .65rem;} }
     </style>
 </head>
@@ -96,8 +101,11 @@
                 <!-- Recipient Name -->
                 <div>
                     <label class="block font-bold text-slate-700 text-[11px] mb-0.5">اسم المستلم</label><span class="field-hint">يمكنك كتابة الاسم كما يظهر في الحوالة.</span>
-                    <input type="text" id="recipientName" placeholder="أدخل اسم المستلم" autocomplete="off"
-                        class="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded-md focus:ring-1 focus:ring-emerald-500 focus:bg-white outline-none text-xs transition">
+                    <div class="relative">
+                        <input type="text" id="recipientName" placeholder="أدخل اسم المستلم" autocomplete="off" autocapitalize="words"
+                            class="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded-md focus:ring-1 focus:ring-emerald-500 focus:bg-white outline-none text-xs transition" aria-autocomplete="list" aria-expanded="false">
+                        <div id="recipientNameSuggestions" class="suggestions-box hidden" role="listbox"></div>
+                    </div>
                 </div>
 
                 <!-- Recipient Phone with Contact Picker -->
@@ -117,8 +125,11 @@
                 <!-- Sender Name -->
                 <div>
                     <label class="block font-bold text-slate-700 text-[11px] mb-0.5">اسم المرسل</label><span class="field-hint">أدخل اسم صاحب الحوالة.</span>
-                    <input type="text" id="senderName" placeholder="أدخل اسم المرسل" autocomplete="off"
-                        class="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded-md focus:ring-1 focus:ring-emerald-500 focus:bg-white outline-none text-xs transition">
+                    <div class="relative">
+                        <input type="text" id="senderName" placeholder="أدخل اسم المرسل" autocomplete="off" autocapitalize="words"
+                            class="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded-md focus:ring-1 focus:ring-emerald-500 focus:bg-white outline-none text-xs transition" aria-autocomplete="list" aria-expanded="false">
+                        <div id="senderNameSuggestions" class="suggestions-box hidden" role="listbox"></div>
+                    </div>
                 </div>
 
                 <!-- Sender Phone with Contact Picker -->
@@ -223,6 +234,97 @@
         const recipientPhoneInput = document.getElementById('recipientPhone');
         const senderNameInput = document.getElementById('senderName');
         const senderPhoneInput = document.getElementById('senderPhone');
+        const recipientNameSuggestions = document.getElementById('recipientNameSuggestions');
+        const senderNameSuggestions = document.getElementById('senderNameSuggestions');
+
+        // أسماء يتعلمها التطبيق من الكتابة والحوالات المحفوظة
+        let learnedNames = [];
+        const LEARNED_NAMES_KEY = 'transferLearnedNames';
+
+        function normalizeNameForSearch(value) {
+            return (value || '').trim().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ـ/g, '');
+        }
+
+        function learnName(value) {
+            const name = (value || '').trim().replace(/\s+/g, ' ');
+            if (name.length < 2) return;
+            const key = normalizeNameForSearch(name);
+            const exists = learnedNames.some(n => normalizeNameForSearch(n) === key);
+            if (!exists) {
+                learnedNames.unshift(name);
+                learnedNames = learnedNames.slice(0, 300);
+                try { localStorage.setItem(LEARNED_NAMES_KEY, JSON.stringify(learnedNames)); } catch(e) {}
+            }
+        }
+
+        function loadLearnedNames() {
+            try {
+                const stored = JSON.parse(localStorage.getItem(LEARNED_NAMES_KEY) || '[]');
+                if (Array.isArray(stored)) learnedNames = stored.filter(n => typeof n === 'string');
+            } catch(e) { learnedNames = []; }
+            // دمج الأسماء الموجودة أصلًا في سجل الحوالات
+            (savedHistory || []).forEach(item => {
+                learnName(item.recipientName);
+                learnName(item.senderName);
+            });
+        }
+
+        function getNameSuggestions(value) {
+            const query = normalizeNameForSearch(value);
+            if (!query) return [];
+            return learnedNames
+                .filter(name => normalizeNameForSearch(name).includes(query))
+                .slice(0, 7);
+        }
+
+        function renderNameSuggestions(input, box) {
+            const suggestions = getNameSuggestions(input.value);
+            if (!suggestions.length) {
+                box.innerHTML = '';
+                box.classList.add('hidden');
+                input.setAttribute('aria-expanded', 'false');
+                return;
+            }
+            box.innerHTML = suggestions.map((name, index) => {
+                const safe = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+                return '<button type="button" class="suggestion-item" data-name-index="' + index + '"><span><i class="fa-solid fa-user-clock text-indigo-400 ml-1"></i>' + safe + '</span><span class="suggestion-mark">من الأسماء السابقة</span></button>';
+            }).join('');
+            box.classList.remove('hidden');
+            input.setAttribute('aria-expanded', 'true');
+            box.querySelectorAll('.suggestion-item').forEach(btn => {
+                btn.addEventListener('mousedown', e => e.preventDefault());
+                btn.addEventListener('click', () => {
+                    input.value = suggestions[Number(btn.dataset.nameIndex)];
+                    box.classList.add('hidden');
+                    input.setAttribute('aria-expanded', 'false');
+                    learnName(input.value);
+                    updateOutput();
+                    input.focus();
+                    input.setSelectionRange(input.value.length, input.value.length);
+                });
+            });
+        }
+
+        function setupNameSuggestions(input, box) {
+            input.addEventListener('input', () => {
+                learnName(input.value);
+                renderNameSuggestions(input, box);
+            });
+            input.addEventListener('focus', () => renderNameSuggestions(input, box));
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Escape') {
+                    box.classList.add('hidden');
+                    input.setAttribute('aria-expanded', 'false');
+                }
+            });
+            input.addEventListener('blur', () => {
+                setTimeout(() => box.classList.add('hidden'), 120);
+                learnName(input.value);
+            });
+        }
+
+        setupNameSuggestions(recipientNameInput, recipientNameSuggestions);
+        setupNameSuggestions(senderNameInput, senderNameSuggestions);
         const targetWhatsAppPhoneInput = document.getElementById('targetWhatsAppPhone');
         
         const outputText = document.getElementById('outputText');
@@ -450,6 +552,8 @@
             const recipientName = recipientNameInput.value.trim();
             const rawRecipientPhone = normalizeDigits(recipientPhoneInput.value.trim()).replace(/[^0-9]/g, '');
             const senderName = senderNameInput.value.trim();
+            learnName(recipientName);
+            learnName(senderName);
             const rawSenderPhone = normalizeDigits(senderPhoneInput.value.trim()).replace(/[^0-9]/g, '');
 
             const isAmountValid = amountVal.length > 0;
@@ -807,6 +911,7 @@
                     });
                 }
             } catch(e) {}
+            loadLearnedNames();
             updateOutput();
             renderHistoryLog();
         };
