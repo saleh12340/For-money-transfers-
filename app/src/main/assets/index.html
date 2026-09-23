@@ -307,7 +307,7 @@
 
         function setupNameSuggestions(input, box) {
             input.addEventListener('input', () => {
-                learnName(input.value);
+                // أثناء الكتابة نبحث فقط؛ لا نتعلم النص الناقص.
                 renderNameSuggestions(input, box);
             });
             input.addEventListener('focus', () => renderNameSuggestions(input, box));
